@@ -19,6 +19,7 @@ func TestWriteRead(t *testing.T) {
 		c(e, t)
 		defer a.Close()
 		fw, e := a.Create("a/file1")
+		
 		c(e, t)
 		fw.Write([]byte("Hello, world!\n"))
 		fw.Write([]byte("你好, 世界!\n"))
@@ -36,7 +37,7 @@ func TestWriteRead(t *testing.T) {
 		defer a.Close()
 		f, e := a.File(0)
 		c(e, t)
-
+		
 		if f.Name != "a/file1" {
 			t.Fatalf("Expected file name a/file1, got %s", f.Name)
 		}

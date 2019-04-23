@@ -47,6 +47,7 @@ type FileHeader struct {
 	CRC32            uint32
 	CompressedSize   uint64
 	UncompressedSize uint64
+	Comment          string
 }
 
 // Flags of zip_open
@@ -135,6 +136,37 @@ func (z *Zip) AddFd(name string, fd uintptr) error {
 	if index < 0 {
 		s.free()
 		return err
+	}
+
+	return nil
+}
+
+func (z *Zip) AddFdWithComment(name string, comment string, fd uintptr) error {
+	z.lock()
+	defer z.unlock()
+	mode := [...]C.char{'r', 0}
+	file := C.fdopen(C.int(fd), &mode[0])
+	s, err := z.sourceFileP(file, 0, -1)
+	if s == nil {
+		return err
+	}
+	index, err := z.add(name, s)
+	if index < 0 {
+		s.free()
+		return err
+	}
+
+	z.setComment(index, comment)
+
+	return nil
+}
+
+func (z *Zip) setComment(index int64, comment string) error {
+	ccomment := C.CString(comment)
+	defer C.free(unsafe.Pointer(ccomment))
+	idx := C.zip_set_file_comment(z.p, C.zip_uint64_t(index), ccomment, C.int(len(comment)))
+	if idx < 0 {
+		return z.error()
 	}
 	return nil
 }

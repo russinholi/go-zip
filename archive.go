@@ -10,9 +10,10 @@ SEE: http://www.nih.at/libzip/index.html
 package zip
 
 import (
-	. "github.com/hailiang/go-zip/c"
 	"io"
 	"sync"
+
+	. "github.com/hailiang/go-zip/c"
 )
 
 // Archive provides ability for reading, creating and modifying a ZIP archive.
@@ -47,6 +48,11 @@ func (a *Archive) Create(name string) (w io.WriteCloser, err error) {
 	return a.createFile(name)
 }
 
+// Add a file in the ZIP archive with the supplied comment.
+func (a *Archive) CreateFileWithComment(name, comment string) (w io.WriteCloser, err error) {
+	return a.createFileWithComment(name, comment)
+}
+
 func (a *Archive) createDirectory(name string) (io.WriteCloser, error) {
 	a.lock()
 	defer a.unlock()
@@ -55,6 +61,22 @@ func (a *Archive) createDirectory(name string) (io.WriteCloser, error) {
 }
 
 func (a *Archive) createFile(name string) (io.WriteCloser, error) {
+	a.lock()
+	f, err := newFileWriter(a.z, name)
+	if err != nil {
+		return nil, err
+	}
+
+	// the writing actually happens when the zip archive is closed.
+	// so reopen it in the background.
+	go func() {
+		f.done <- a.reopen()
+		a.unlock()
+	}()
+	return f, nil
+}
+
+func (a *Archive) createFileWithComment(name, comment string) (io.WriteCloser, error) {
 	a.lock()
 	f, err := newFileWriter(a.z, name)
 	if err != nil {
