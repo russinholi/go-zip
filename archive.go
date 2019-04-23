@@ -13,7 +13,7 @@ import (
 	"io"
 	"sync"
 
-	. "github.com/hailiang/go-zip/c"
+	. "github.com/russinholi/go-zip/c"
 )
 
 // Archive provides ability for reading, creating and modifying a ZIP archive.

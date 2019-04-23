@@ -5,9 +5,10 @@
 package zip
 
 import (
-	. "github.com/hailiang/go-zip/c"
 	"io"
 	"os"
+
+	. "github.com/russinholi/go-zip/c"
 )
 
 // File provides ability to read a file in the ZIP archive.
