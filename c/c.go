@@ -64,8 +64,11 @@ func (z *Zip) Open() (err error) {
 	defer C.free(unsafe.Pointer(cpath))
 	var ze C.int
 	z.p, err = C.zip_open(cpath, _ZIP_CREATE, &ze)
-	if z == nil {
-		se := error_to_errno(err)
+	if z == nil || C.ZIP_ER_OK != ze {
+		se := ze
+		if err != nil {
+			se = error_to_errno(err)
+		}
 		return ze_se_to_error(ze, se)
 	}
 	return nil
@@ -123,7 +126,7 @@ func (z *Zip) add(name string, s *zipSource) (int64, error) {
 	return index, nil
 }
 
-func (z *Zip) AddFd(name string, fd uintptr) error {
+func (z *Zip) AddFd(name, comment string, fd uintptr) error {
 	z.lock()
 	defer z.unlock()
 	mode := [...]C.char{'r', 0}
@@ -138,25 +141,9 @@ func (z *Zip) AddFd(name string, fd uintptr) error {
 		return err
 	}
 
-	return nil
-}
-
-func (z *Zip) AddFdWithComment(name string, comment string, fd uintptr) error {
-	z.lock()
-	defer z.unlock()
-	mode := [...]C.char{'r', 0}
-	file := C.fdopen(C.int(fd), &mode[0])
-	s, err := z.sourceFileP(file, 0, -1)
-	if s == nil {
-		return err
+	if comment != "" {
+		z.setComment(index, comment)
 	}
-	index, err := z.add(name, s)
-	if index < 0 {
-		s.free()
-		return err
-	}
-
-	z.setComment(index, comment)
 
 	return nil
 }
@@ -315,7 +302,17 @@ func (z *Zip) FileHeader(index uint64) (*FileHeader, error) {
 	if C.ZIP_STAT_SIZE&s.valid != 0 {
 		h.UncompressedSize = uint64(s.size)
 	}
+
+	h.Comment = z.getComment(index)
 	return h, nil
+}
+
+func (z *Zip) getComment(index uint64) string {
+	comment := C.zip_file_get_comment(z.p, C.zip_uint64_t(index), nil, 0)
+	if comment == nil {
+		return ""
+	}
+	return C.GoString(comment)
 }
 
 /*

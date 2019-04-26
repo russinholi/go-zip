@@ -19,7 +19,7 @@ func TestWriteRead(t *testing.T) {
 		c(e, t)
 		defer a.Close()
 		fw, e := a.Create("a/file1")
-		
+
 		c(e, t)
 		fw.Write([]byte("Hello, world!\n"))
 		fw.Write([]byte("你好, 世界!\n"))
@@ -37,7 +37,7 @@ func TestWriteRead(t *testing.T) {
 		defer a.Close()
 		f, e := a.File(0)
 		c(e, t)
-		
+
 		if f.Name != "a/file1" {
 			t.Fatalf("Expected file name a/file1, got %s", f.Name)
 		}
@@ -66,4 +66,27 @@ func testFile() string {
 	file := path.Join(os.TempDir(), "test-go-zip.zip")
 	os.Remove(file)
 	return file
+}
+
+func TestAddFileWithComment(t *testing.T) {
+	zipfile := path.Join(os.TempDir(), "test-comment.zip")
+	zipFile, err := Open(zipfile)
+	defer zipFile.Close()
+	defer os.Remove(zipfile)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	fw, _ := zipFile.CreateFileWithComment("file1.txt", "My Comment")
+
+	fw.Write([]byte("anything"))
+	fw.Close()
+
+	f, _ := zipFile.File(uint64(0))
+
+	if "My Comment" != f.Comment {
+		t.Fatal("Comment was not saved")
+	}
+
 }

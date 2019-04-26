@@ -61,24 +61,12 @@ func (a *Archive) createDirectory(name string) (io.WriteCloser, error) {
 }
 
 func (a *Archive) createFile(name string) (io.WriteCloser, error) {
-	a.lock()
-	f, err := newFileWriter(a.z, name)
-	if err != nil {
-		return nil, err
-	}
-
-	// the writing actually happens when the zip archive is closed.
-	// so reopen it in the background.
-	go func() {
-		f.done <- a.reopen()
-		a.unlock()
-	}()
-	return f, nil
+	return a.createFileWithComment(name, "")
 }
 
 func (a *Archive) createFileWithComment(name, comment string) (io.WriteCloser, error) {
 	a.lock()
-	f, err := newFileWriter(a.z, name)
+	f, err := newFileWriter(a.z, name, comment)
 	if err != nil {
 		return nil, err
 	}

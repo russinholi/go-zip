@@ -32,7 +32,7 @@ type fileWriter struct {
 	done  chan error
 }
 
-func newFileWriter(z *Zip, name string) (w *fileWriter, err error) {
+func newFileWriter(z *Zip, name, comment string) (w *fileWriter, err error) {
 	w = &fileWriter{
 		rpipe: nil,
 		wpipe: nil,
@@ -42,7 +42,7 @@ func newFileWriter(z *Zip, name string) (w *fileWriter, err error) {
 		return nil, err
 	}
 
-	err = z.AddFd(name, w.rpipe.Fd())
+	err = z.AddFd(name, comment, w.rpipe.Fd())
 	if err != nil {
 		w.wpipe.Close()
 		w.rpipe.Close()
