@@ -8,11 +8,11 @@ package c
 #cgo LDFLAGS: -lzip
 #include <zip.h>
 #include <stdlib.h>
+
 */
 import "C"
 
 import (
-	"sync"
 	"syscall"
 	"time"
 	"unsafe"
@@ -27,7 +27,6 @@ const (
 type Zip struct {
 	Path string
 	p    *C.struct_zip
-	mu   sync.Mutex
 }
 
 type zipSource struct {
@@ -58,8 +57,6 @@ const (
 // notes: all the exported methods should be locked.
 
 func (z *Zip) Open() (err error) {
-	z.lock()
-	defer z.unlock()
 	cpath := C.CString(z.Path)
 	defer C.free(unsafe.Pointer(cpath))
 	var ze C.int
@@ -74,17 +71,7 @@ func (z *Zip) Open() (err error) {
 	return nil
 }
 
-func (z *Zip) lock() {
-	z.mu.Lock()
-}
-
-func (z *Zip) unlock() {
-	z.mu.Unlock()
-}
-
 func (z *Zip) Close() error {
-	z.lock()
-	defer z.unlock()
 	if z.p != nil {
 		if -1 == C.zip_close(z.p) {
 			return z.error()
@@ -127,14 +114,13 @@ func (z *Zip) add(name string, s *zipSource) (int64, error) {
 }
 
 func (z *Zip) AddFd(name, comment string, fd uintptr) error {
-	z.lock()
-	defer z.unlock()
 	mode := [...]C.char{'r', 0}
 	file := C.fdopen(C.int(fd), &mode[0])
 	s, err := z.sourceFileP(file, 0, -1)
 	if s == nil {
 		return err
 	}
+
 	index, err := z.add(name, s)
 	if index < 0 {
 		s.free()
@@ -151,7 +137,7 @@ func (z *Zip) AddFd(name, comment string, fd uintptr) error {
 func (z *Zip) setComment(index int64, comment string) error {
 	ccomment := C.CString(comment)
 	defer C.free(unsafe.Pointer(ccomment))
-	idx := C.zip_set_file_comment(z.p, C.zip_uint64_t(index), ccomment, C.int(len(comment)))
+	idx := C.zip_set_file_comment(z.p, C.zip_uint64_t(index), ccomment, C.int(len(comment)+1))
 	if idx < 0 {
 		return z.error()
 	}
@@ -159,8 +145,6 @@ func (z *Zip) setComment(index int64, comment string) error {
 }
 
 func (z *Zip) AddDir(name string) (int64, error) {
-	z.lock()
-	defer z.unlock()
 	cname := C.CString(name)
 	defer C.free(unsafe.Pointer(cname))
 	index := int64(C.zip_add_dir(z.p, cname))
@@ -171,8 +155,6 @@ func (z *Zip) AddDir(name string) (int64, error) {
 }
 
 func (z *Zip) GetNumEntries(flags C.zip_flags_t) (int64, error) {
-	z.lock()
-	defer z.unlock()
 	num := int64(C.zip_get_num_entries(z.p, flags))
 	if num < 0 {
 		return num, z.error()
@@ -181,11 +163,10 @@ func (z *Zip) GetNumEntries(flags C.zip_flags_t) (int64, error) {
 }
 
 func (z *Zip) NameLocate(fname string, flags C.zip_flags_t) (int64, error) {
-	z.lock()
-	defer z.unlock()
 	cfname := C.CString(fname)
 	defer C.free(unsafe.Pointer(cfname))
 	index := int64(C.zip_name_locate(z.p, cfname, flags))
+
 	if index < 0 {
 		return index, z.error()
 	}
@@ -193,8 +174,6 @@ func (z *Zip) NameLocate(fname string, flags C.zip_flags_t) (int64, error) {
 }
 
 func (z *Zip) Delete(index uint64) error {
-	z.lock()
-	defer z.unlock()
 	if 0 != C.zip_delete(z.p, C.zip_uint64_t(index)) {
 		return z.error()
 	}
@@ -202,8 +181,6 @@ func (z *Zip) Delete(index uint64) error {
 }
 
 func (z *Zip) Rename(index uint64, name string) error {
-	z.lock()
-	defer z.unlock()
 	cname := C.CString(name)
 	defer C.free(unsafe.Pointer(cname))
 	if 0 != C.zip_rename(z.p, C.zip_uint64_t(index), cname) {
@@ -213,8 +190,6 @@ func (z *Zip) Rename(index uint64, name string) error {
 }
 
 func (z *Zip) FopenIndex(index uint64, flags C.zip_flags_t) (*ZipFile, error) {
-	z.lock()
-	defer z.unlock()
 	f := C.zip_fopen_index(z.p, C.zip_uint64_t(index), flags)
 	if f == nil {
 		return nil, z.error()
@@ -223,8 +198,6 @@ func (z *Zip) FopenIndex(index uint64, flags C.zip_flags_t) (*ZipFile, error) {
 }
 
 func (z *Zip) Fopen(name string, flags C.zip_flags_t) (*ZipFile, error) {
-	z.lock()
-	defer z.unlock()
 	cname := C.CString(name)
 	defer C.free(unsafe.Pointer(cname))
 	f := C.zip_fopen(z.p, cname, flags)
@@ -235,8 +208,6 @@ func (z *Zip) Fopen(name string, flags C.zip_flags_t) (*ZipFile, error) {
 }
 
 func (f *ZipFile) Read(b []byte) (int64, error) {
-	f.z.lock()
-	defer f.z.unlock()
 	n := C.zip_fread(f.p, unsafe.Pointer(&b[0]), C.zip_uint64_t(len(b)))
 	if n == -1 {
 		return 0, f.error()
@@ -245,8 +216,6 @@ func (f *ZipFile) Read(b []byte) (int64, error) {
 }
 
 func (f *ZipFile) Close() error {
-	f.z.lock()
-	defer f.z.unlock()
 	ze, err := C.zip_fclose(f.p)
 	if ze != 0 {
 		se := error_to_errno(err)
@@ -273,8 +242,6 @@ func (z *Zip) statIndex(index uint64, flags C.zip_flags_t) (*C.struct_zip_stat, 
 }
 
 func (z *Zip) FileHeader(index uint64) (*FileHeader, error) {
-	z.lock()
-	defer z.unlock()
 	s, err := z.statIndex(index, 0)
 	if err != nil {
 		return nil, err

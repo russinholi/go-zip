@@ -24,6 +24,7 @@ func TestWriteRead(t *testing.T) {
 		fw.Write([]byte("Hello, world!\n"))
 		fw.Write([]byte("你好, 世界!\n"))
 		fw.Close()
+
 		fw, e = a.Create("b/file2")
 		c(e, t)
 		fw.Write([]byte("2nd\n"))
@@ -50,7 +51,7 @@ func TestWriteRead(t *testing.T) {
 		n, e := r.Read(buf)
 		text := string(buf[:n])
 		if text != "Hello, world!\n你好, 世界!\n" {
-			t.Fatalf("Text mismatch, got %s", text)
+			t.Fatalf("Text mismatch, got [%s]", text)
 		}
 	}()
 }

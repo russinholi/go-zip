@@ -11,15 +11,13 @@ package zip
 
 import (
 	"io"
-	"sync"
 
 	. "github.com/russinholi/go-zip/c"
 )
 
 // Archive provides ability for reading, creating and modifying a ZIP archive.
 type Archive struct {
-	z  *Zip
-	mu sync.Mutex
+	z *Zip
 }
 
 // Open a ZIP archive, create a new one if not exists.
@@ -54,8 +52,6 @@ func (a *Archive) CreateFileWithComment(name, comment string) (w io.WriteCloser,
 }
 
 func (a *Archive) createDirectory(name string) (io.WriteCloser, error) {
-	a.lock()
-	defer a.unlock()
 	_, err := a.z.AddDir(name)
 	return nil, err
 }
@@ -65,35 +61,12 @@ func (a *Archive) createFile(name string) (io.WriteCloser, error) {
 }
 
 func (a *Archive) createFileWithComment(name, comment string) (io.WriteCloser, error) {
-	a.lock()
 	f, err := newFileWriter(a.z, name, comment)
 	if err != nil {
 		return nil, err
 	}
 
-	// the writing actually happens when the zip archive is closed.
-	// so reopen it in the background.
-	go func() {
-		f.done <- a.reopen()
-		a.unlock()
-	}()
 	return f, nil
-}
-
-func (a *Archive) lock() {
-	a.mu.Lock()
-}
-
-func (a *Archive) unlock() {
-	a.mu.Unlock()
-}
-
-func (a *Archive) reopen() error {
-	err := a.z.Close()
-	if err != nil {
-		return err
-	}
-	return a.z.Open()
 }
 
 // ZIP entry count in the ZIP archive.

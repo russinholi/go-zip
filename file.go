@@ -29,14 +29,14 @@ func (f *File) Open() (rc io.ReadCloser, err error) {
 type fileWriter struct {
 	rpipe *os.File
 	wpipe *os.File
-	done  chan error
+	z     *Zip
 }
 
 func newFileWriter(z *Zip, name, comment string) (w *fileWriter, err error) {
 	w = &fileWriter{
 		rpipe: nil,
 		wpipe: nil,
-		done:  make(chan error)}
+		z:     z}
 	w.rpipe, w.wpipe, err = os.Pipe()
 	if err != nil {
 		return nil, err
@@ -59,10 +59,20 @@ func (w *fileWriter) Write(p []byte) (nn int, err error) {
 func (w *fileWriter) Close() error {
 	w.wpipe.Close()
 	w.wpipe = nil
-	err := <-w.done // wait for the archive finishing writing.
+	err := w.reopen()
 	w.rpipe.Close()
 	w.rpipe = nil
+
 	return err
+}
+
+//reopen Zip file to assure the writing process is flushed
+func (w *fileWriter) reopen() error {
+	err := w.z.Close()
+	if err != nil {
+		return err
+	}
+	return w.z.Open()
 }
 
 type fileReader struct {
